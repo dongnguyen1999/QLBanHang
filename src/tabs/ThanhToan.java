@@ -34,6 +34,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import com.ibm.icu.util.BytesTrie.Result;
 
+import tools.DatabaseUtils;
 import tools.MySQLConnector;
 import javax.swing.JPopupMenu;
 import java.awt.Component;
@@ -56,7 +57,7 @@ public class ThanhToan extends JPanel{
 	private JButton addButton;
 	private JButton sellButton; 
 	private DefaultTableModel tableData;
-	private Connection connection;
+	private DatabaseUtils dbUtils;
 	private boolean importable;
 	private int sttCounter;
 	private JLabel lbValTongGiaTri;
@@ -274,30 +275,6 @@ public class ThanhToan extends JPanel{
 				e.printStackTrace();
 			}
 		}
-	}
-	
-	/**
-	 * compute name of goods that has specific id
-	 * @param id: value of field HH_MA in table HANG_HOA
-	 * @return String: name if the good  
-	 */
-	private String computeNameOfGoods(String id) {
-		if (connection != null) {//create connection successfully
-			try {
-				//get sum of number of imported good
-				Statement statement = connection.createStatement();
-				String sql = "select HH_TEN from HANG_HOA"
-						+ " where HH_MA='" + id + "';";
-				ResultSet result = statement.executeQuery(sql);//result set pointer start at null
-				result.next();// set pointer to the only first row
-				String name = result.getString(1);
-				return name;
-			}catch (Exception e) {
-				e.printStackTrace();
-				return NOT_FOUND_ID;
-			}
-		}
-		return NOT_FOUND_ID;
 	}
 	
 	/**

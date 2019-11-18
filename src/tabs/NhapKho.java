@@ -34,6 +34,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import com.ibm.icu.util.BytesTrie.Result;
 
+import tools.DatabaseUtils;
 import tools.MySQLConnector;
 import javax.swing.JPopupMenu;
 import java.awt.Component;
@@ -56,7 +57,7 @@ public class NhapKho extends JPanel{
 	private JTextField tfSoLuongNhap;
 	private JButton importButton; 
 	private DefaultTableModel tableData;
-	private Connection connection;
+	private DatabaseUtils dbUtils;
 	private boolean importable;
 
 	private static final String[] COLUMN_NAMES = {"STT","Mã hàng","Thời gian nhập", "Đơn giá nhập", "Số lượng nhập"};
@@ -70,10 +71,10 @@ public class NhapKho extends JPanel{
 		 * @param id: value of field HH_MA in table HANG_HOA
 		 */
 		private void checkImportable(String id) {
-			importable = findGoodIdInDatabase(id);
+			importable = dbUtils.findGoodIdInDatabase(id);
 			if (importable) {
-				lbValTenHang.setText(computeNameOfGoods(id));
-				lbValTonKho.setText(computeNumberOfGoods(id)+"");
+				lbValTenHang.setText(dbUtils.computeNameOfGoods(id));
+				lbValTonKho.setText(dbUtils.computeNumberOfGoods(id)+"");
 			} else {
 				lbValTenHang.setText(NOT_FOUND_ID);
 				lbValTonKho.setText(NOT_FOUND_ID);
@@ -107,7 +108,7 @@ public class NhapKho extends JPanel{
 				qlHangHoa.refreshTable();
 				//refresh jtable
 				tableData = new DefaultTableModel(COLUMN_NAMES,0);
-				initDataFromDatabase(tableData);
+				dbUtils.initImportsInfoFromDatabase(tableData);
 				table.setModel(tableData);
 				//clear text-fields
 				tfMaHang.setText(new String());
@@ -122,7 +123,7 @@ public class NhapKho extends JPanel{
 	
 	public NhapKho(QLHangHoa hanghoa) {
 		qlHangHoa = hanghoa;
-		connection = new MySQLConnector().getConnection();
+		dbUtils = new DatabaseUtils(this);
 		importable = false;
 		// //definition for the tab "QL Hàng hóa" 
 		setLayout(new BorderLayout(0, 0));
@@ -133,7 +134,7 @@ public class NhapKho extends JPanel{
 		northPanel.add(addGoodsPanel, BorderLayout.WEST);//add form to the west-north of main panel
 		JScrollPane scrollPane = new JScrollPane();
 		tableData = new DefaultTableModel(COLUMN_NAMES, 0);//make new data for table with the top bar for columnNames
-		initDataFromDatabase(tableData);
+		dbUtils.initImportsInfoFromDatabase(tableData);
 		table = new JTable(tableData);
 		table.setRowHeight(25);
 		table.getTableHeader().setFont(new Font("Dialog", Font.CENTER_BASELINE, 20));
@@ -200,115 +201,7 @@ public class NhapKho extends JPanel{
 		return panel;
 	}
 	
-	/**
-	 * clear current rows in table-model 'data' 
-	 * add data about Goods from database to table-model 'data' 
-	 * @param data: a TableModel that manages data in JTable 
-	 */
-	private void initDataFromDatabase(DefaultTableModel data) {
-		//remove all current rows
-		for (int i = 0; i < data.getRowCount(); i++) data.removeRow(i);
-		//get data from database
-		if (connection != null) { //create connection successfully
-			try {
-				Statement statement = connection.createStatement();
-				String sql = "select * from PHIEU_NHAP_KHO;";
-				ResultSet result = statement.executeQuery(sql);
-				//result set pointer start at null
-				while(result.next()) {//move the pointer to next row
-					//read data from a row
-					String stt = result.getString(1);//get PNK_STT by read column 1
-					String maHang = result.getString(2);//get HH_MAHANG by read column 2
-					String ngayNhap = result.getString(3);//get PNK_NGAYNHAP by read column 3
-					String donGiaNhap = result.getString(4);//get PNK_DONGIANHAP by read column 4
-					String soLuongNhap = result.getInt(5) + "";//get PNK_DONGIANHAP by read column 5
-//					System.out.println(maHang + " | " + tenHang + " | " + donViTinh + " | " + donGiaBan);
-					//add data from row to table-model data
-					data.addRow(new String[] {stt, maHang, ngayNhap, donGiaNhap, soLuongNhap});
-				}
-			}catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-	}
 	
-	/**
-	 * compute name of goods that has specific id
-	 * @param id: value of field HH_MA in table HANG_HOA
-	 * @return String: name if the good  
-	 */
-	private String computeNameOfGoods(String id) {
-		if (connection != null) {//create connection successfully
-			try {
-				//get sum of number of imported good
-				Statement statement = connection.createStatement();
-				String sql = "select HH_TEN from HANG_HOA"
-						+ " where HH_MA='" + id + "';";
-				ResultSet result = statement.executeQuery(sql);//result set pointer start at null
-				result.next();// set pointer to the only first row
-				String name = result.getString(1);
-				return name;
-			}catch (Exception e) {
-				e.printStackTrace();
-				return NOT_FOUND_ID;
-			}
-		}
-		return NOT_FOUND_ID;
-	}
-	
-	/**
-	 * compute number of goods that are being stored in storage
-	 * @param id: value of field HH_MAHANG in table HANG_HOA
-	 * @return number of the good with the specific id  
-	 */
-	private int computeNumberOfGoods(String id) {
-		int numberOfGood = 0;
-		if (connection != null) {//create connection successfully
-			try {
-				//get sum of number of imported good
-				Statement statement = connection.createStatement();
-				String sql = "select sum(PNK_SOLUONGNHAP) from PHIEU_NHAP_KHO"
-						+ " where HH_MA='" + id + "';";
-				ResultSet result = statement.executeQuery(sql);//result set pointer start at null
-				result.next();// set pointer to the only first row
-				int numberOfIm = result.getInt(1);
-				//get sum of number of exported good
-				statement = connection.createStatement();
-				sql = "select sum(CTHD_SOLUONG) from CHI_TIET_HOA_DON"
-						+ " where HH_MA='" + id + "';";
-				result = statement.executeQuery(sql);//result set pointer start at null
-				result.next();// set pointer to the only first row
-				int numberOfEx = result.getInt(1);
-				return numberOfIm-numberOfEx;
-			}catch (Exception e) {
-				e.printStackTrace();
-				return -1;
-			}
-		}
-		return numberOfGood;
-	}
-	
-	/**
-	 * check if the good id is in database
-	 * @param id: value of field HH_MA in table HANG_HOA
-	 * @return boolean  
-	 */
-	private boolean findGoodIdInDatabase(String id) {
-		if (connection != null) {//create connection successfully
-			try {
-				Statement statement = connection.createStatement();
-				String sql = "select count(*) from HANG_HOA where HH_MA='" + id + "';";
-				ResultSet result = statement.executeQuery(sql);//result set pointer start at null
-				result.next();// set pointer to the only first row
-				int num = result.getInt(1);
-				if (num == 1) return true;
-			}catch (Exception e) {
-				e.printStackTrace();
-				return false;
-			}
-		}
-		return false;
-	}
 	
 	/**
 	 * Add information about importing report into table PHIEU_NHAP_KHO
@@ -344,25 +237,6 @@ public class NhapKho extends JPanel{
 			return false;
 		}
 		
-		if (connection != null) {//create connection successfully
-			try {
-				String sql = "insert into PHIEU_NHAP_KHO(HH_MA, PNK_NGAYNHAP, PNK_DONGIANHAP, PNK_SOLUONGNHAP) values (?,NOW(),?,?);";
-				PreparedStatement statement = connection.prepareStatement(sql);
-				statement.setString(1, maHang);
-				statement.setFloat(2, donGiaNhap);
-				statement.setInt(3, soLuongNhap);
-				statement.execute();
-				return true;
-			}
-			catch (SQLIntegrityConstraintViolationException e) {
-				//show message: this good is already exist
-				JOptionPane.showMessageDialog(this, "Dữ liệu đầu vào không hợp lệ!\nMã hàng này đã tồn tại trên hệ thống", "Lỗi", JOptionPane.ERROR_MESSAGE);
-				return false;
-			}
-			catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-		return false;
+		return dbUtils.insertImportIntoDatabase(maHang, donGiaNhap, soLuongNhap);
 	}
 }
